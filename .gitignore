@@ -1,0 +1,6 @@
+.gradle/
+.dart_tool/
+build/
+android/app/build/.gradle/
+.dart_tool/
+build/
