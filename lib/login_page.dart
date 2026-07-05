@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'register_page.dart'; // Ensure this is imported
+import 'register_page.dart'; 
 import 'forgot_password_page.dart';
+import 'home_page.dart'; // Ensure this is imported
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -27,6 +28,14 @@ class _LoginPageState extends State<LoginPage> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+      
+      // Successfully logged in, navigate to HomePage
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomePage()),
+      );
+      
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message ?? "Error")));
     } finally {
@@ -67,20 +76,20 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 16),
               TextButton(
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
-    );
-  },
-  child: const Text(
-    'Forgot Password?',
-    style: TextStyle(
-      color: Colors.red,
-      decoration: TextDecoration.underline,
-    ),
-  ),
-),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
+                  );
+                },
+                child: const Text(
+                  'Forgot Password?',
+                  style: TextStyle(
+                    color: Colors.red,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
               
               const Spacer(), 
               
@@ -89,7 +98,6 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   const Text("Don't have an account? "),
                   GestureDetector(
-                    // UPDATED: Navigates directly to RegisterPage using pushReplacement
                     onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const RegisterPage())), 
                     child: const Text('Sign Up', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, decoration: TextDecoration.underline))
                   ),
