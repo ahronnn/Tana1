@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'email_confirmation_page.dart';
 import 'login_page.dart'; // Added import for the LoginPage
 
@@ -34,8 +35,10 @@ class _RegisterPageState extends State<RegisterPage> {
   Future<void> _registerUserWithFirebase() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
+    final firstName = _firstNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
 
-    if (email.isEmpty || password.isEmpty || _firstNameController.text.trim().isEmpty || _lastNameController.text.trim().isEmpty) {
+    if (email.isEmpty || password.isEmpty || firstName.isEmpty || lastName.isEmpty) {
       _showErrorSnackbar('Please fill in all the input fields.');
       return;
     }
@@ -48,11 +51,35 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => _isLoading = true);
 
     try {
-      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email, password: password);
-      if (userCredential.user != null && !userCredential.user!.emailVerified) {
-        await userCredential.user!.sendEmailVerification();
-        if (mounted) {
-          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => EmailConfirmationPage(email: email)));
+      // 1. Gumawa ng Firebase account
+      UserCredential userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+
+      if (userCredential.user != null) {
+        // 2. I-insert ang profile info papunta sa Supabase
+        //    Ang Firebase UID ay gagamitin natin bilang id sa Supabase profiles table
+        try {
+          await Supabase.instance.client.from('profiles').insert({
+            'firebase_uid': userCredential.user!.uid,
+            'first_name': firstName,
+            'last_name': lastName,
+            'role': 'student', // default role — valid values: student, evaluator, admin
+          });
+          print('✅ Profile inserted to Supabase for uid: ${userCredential.user!.uid}');
+        } catch (e) {
+          print('❌ Supabase insert error: $e');
+          // Hindi natin hinihinto ang registration flow kahit mag-fail ang insert dito,
+          // pero maganda sanang alertuhan mo ang sarili mo habang nagtetest
+        }
+
+        // 3. Magpadala ng verification email at pumunta sa confirmation page
+        if (!userCredential.user!.emailVerified) {
+          await userCredential.user!.sendEmailVerification();
+          if (mounted) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => EmailConfirmationPage(email: email)),
+            );
+          }
         }
       }
     } on FirebaseAuthException catch (e) {

@@ -1,15 +1,19 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // Added Firebase import
-import 'login_page.dart'; // 1. Added import for your new login page workflow!
+import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'login_page.dart';
 import 'splash_page.dart';
 
 void main() async {
-  // Ensures native components are completely ready before initializing Firebase
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Boots up Firebase with the native configurations we added
   await Firebase.initializeApp();
+
+  await Supabase.initialize(
+    url: 'https://dphudshfuowpskpesord.supabase.co',
+    anonKey: 'sb_publishable_hcyC8TsklMy5Mp4N15Gv8Q_zYpHrNJ4',
+  );
 
   runApp(const Tana1App());
 }
@@ -19,13 +23,13 @@ class Tana1App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp( 
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'TANA 1',
       theme: ThemeData(
         useMaterial3: true,
       ),
-      home: SplashPage(),
+      home: const SplashPage(),
     );
   }
 }
@@ -41,21 +45,20 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    // 3-second delay on the logo
     Timer(const Duration(seconds: 3), () {
       if (mounted) {
-        // Smooth Custom Fade Transition Builder
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
-            // 2. Swapped destination target here to load LoginPage instead of AuthWelcomePage
-            pageBuilder: (context, animation, secondaryAnimation) => const LoginPage(),
+            pageBuilder: (context, animation, secondaryAnimation) {
+              return const LoginPage();
+            },
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
               return FadeTransition(
                 opacity: animation,
                 child: child,
               );
             },
-            transitionDuration: const Duration(milliseconds: 800), // Controls the fade speed
+            transitionDuration: const Duration(milliseconds: 800),
           ),
         );
       }
