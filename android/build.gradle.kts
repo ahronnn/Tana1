@@ -1,7 +1,8 @@
 allprojects {
     repositories {
-        google()
-        mavenCentral()
+        // Updated to force HTTP to bypass network corruption
+        maven { url = uri("https://maven.google.com") }
+        maven { url = uri("https://repo1.maven.org/maven2") }
     }
 }
 

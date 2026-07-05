@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "957461927293",
+    "project_id": "tana-app-9b3d0",
+    "storage_bucket": "tana-app-9b3d0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:957461927293:android:2199f69059d58f98e2a814",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKsVtJ4mE9h99HkkRtQJ5gE8U73B3VfPM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
