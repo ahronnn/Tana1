@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'email_confirmation_page.dart';
+import 'login_page.dart'; // Added import for the LoginPage
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -112,7 +113,8 @@ class _RegisterPageState extends State<RegisterPage> {
                 children: [
                   const Text("Already have an account? ", style: TextStyle(color: Colors.red, fontSize: 13)),
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
+                    // UPDATED: Navigates directly to LoginPage
+                    onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const LoginPage())),
                     child: const Text('Log In', style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
                   ),
                 ],

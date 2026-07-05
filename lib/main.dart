@@ -19,7 +19,7 @@ class Tana1App extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp( 
       debugShowCheckedModeBanner: false,
       title: 'TANA 1',
       theme: ThemeData(
