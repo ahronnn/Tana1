@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
+import 'student_info_page.dart'; // Import the new file
+
+// User Model for structured data
+class UserModel {
+  final String name;
+  final String email;
+  final String applicationStatus;
+
+  UserModel({required this.name, required this.email, required this.applicationStatus});
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -10,16 +20,17 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // Replace this with the actual user's name from your Auth/Database provider
-  final String userName = "Ahron John"; 
+  // Mocking user data - ready to be replaced by Supabase
+  final UserModel currentUser = UserModel(
+    name: "Ahron John",
+    email: "ahron@tana1app.com",
+    applicationStatus: "No active application",
+  );
 
   final List<NewsItem> newsItems = [
-    NewsItem(title: "Batch 2 Payout Schedule", description: "Scheduled for July 15, 2026. Please check your emails."),
+    NewsItem(title: "Batch 2 Payout Schedule", description: "Scheduled for July 15, 2026."),
     NewsItem(title: "New Requirements", description: "Check the updated list for 2026 Academic Aid."),
-    NewsItem(title: "Scholarship Portal Open", description: "Tanauan City Scholarship Portal is now accepting applications."),
-    NewsItem(title: "Tanauan City Little League Baseball!", description: "Opisyal nang nagtapos ang 2026 Little League Asia-Pacific."),
-    NewsItem(title: "Mga Bagong Pasilidad", description: "Bago at Mas pinagandang Bahay Pag-asa at Bahay Kanlungan!"),
-    NewsItem(title: "Paalala sa Tag-Ulan", description: "Magdala ng payong o kapote, mag-ingat sa pagmamaneho."),
+    NewsItem(title: "Scholarship Portal Open", description: "Accepting applications now."),
   ];
 
   @override
@@ -30,18 +41,27 @@ class _HomePageState extends State<HomePage> {
         title: const Text('Tanauan Assistance', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: Colors.red.shade800,
         elevation: 0,
-        actions: [IconButton(icon: const Icon(Icons.notifications_none, color: Colors.white), onPressed: () {})],
+        actions: [
+          IconButton(
+            icon: const Icon(BootstrapIcons.person_circle, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const StudentInfoPage()),
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            _buildHeroSection(userName), // Pass the dynamic name here
+            _buildHeroSection(currentUser),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 10),
                   const Text('Announcements', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
                   _buildNewsCarousel(),
@@ -72,7 +92,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildHeroSection(String name) {
+  Widget _buildHeroSection(UserModel user) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(16),
@@ -90,12 +110,12 @@ class _HomePageState extends State<HomePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text("Welcome back,", style: TextStyle(color: Colors.white70, fontSize: 16)),
-          Text(name, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+          Text(user.name, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
           const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(12)),
-            child: const Text("Status: Processing Application", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            child: Text("Status: ${user.applicationStatus}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -105,26 +125,18 @@ class _HomePageState extends State<HomePage> {
   Widget _buildNewsCarousel() {
     return CarouselSlider.builder(
       itemCount: newsItems.length,
-      options: CarouselOptions(
-        height: 100, 
-        autoPlay: true, 
-        autoPlayInterval: const Duration(seconds: 6), // Updated to 6 seconds
-        viewportFraction: 0.95, 
-        enlargeCenterPage: true
-      ),
+      options: CarouselOptions(height: 100, autoPlay: true, autoPlayInterval: const Duration(seconds: 6), viewportFraction: 0.95, enlargeCenterPage: true),
       itemBuilder: (context, index, realIdx) {
         final item = newsItems[index];
         return Card(
           elevation: 2,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(12.0),
+          child: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red), textAlign: TextAlign.center),
-                const SizedBox(height: 4),
-                Text(item.description, style: const TextStyle(fontSize: 11, color: Colors.black87), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+                Text(item.description, style: const TextStyle(fontSize: 11), textAlign: TextAlign.center),
               ],
             ),
           ),
