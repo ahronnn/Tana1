@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
-import 'student_info_page.dart'; // Import the new file
+import 'student_info_page.dart';
+import 'submission_hub.dart'; // Ensure this file exists
 
-// User Model for structured data
 class UserModel {
   final String name;
   final String email;
@@ -20,7 +20,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // Mocking user data - ready to be replaced by Supabase
   final UserModel currentUser = UserModel(
     name: "Ahron John",
     email: "ahron@tana1app.com",
@@ -76,10 +75,12 @@ class _HomePageState extends State<HomePage> {
                     mainAxisSpacing: 15,
                     childAspectRatio: 1.3,
                     children: [
-                      _buildActionTile(BootstrapIcons.upload, "Upload Files", Colors.blue),
-                      _buildActionTile(BootstrapIcons.file_earmark_text, "Requirements", Colors.orange),
-                      _buildActionTile(BootstrapIcons.graph_up, "Track Status", Colors.green),
-                      _buildActionTile(BootstrapIcons.question_circle, "Support", Colors.purple),
+                      _buildActionTile(BootstrapIcons.file_earmark_text, "Application Hub", Colors.red.shade900, () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => const SubmissionHubPage()));
+                      }),
+                      _buildActionTile(BootstrapIcons.upload, "Upload Files", Colors.blue, () {}),
+                      _buildActionTile(BootstrapIcons.graph_up, "Track Status", Colors.green, () {}),
+                      _buildActionTile(BootstrapIcons.question_circle, "Support", Colors.purple, () {}),
                     ],
                   ),
                   const SizedBox(height: 30),
@@ -145,13 +146,13 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildActionTile(IconData icon, String title, Color color) {
+  Widget _buildActionTile(IconData icon, String title, Color color, VoidCallback onTap) {
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: () {},
+        onTap: onTap,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

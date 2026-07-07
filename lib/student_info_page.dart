@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StudentInfoPage extends StatefulWidget {
   const StudentInfoPage({super.key});
@@ -26,18 +26,84 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
 
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _loadImagePath();
+    _loadProfile();
   }
 
-  Future<void> _loadImagePath() async {
-    final prefs = await SharedPreferences.getInstance();
-    final path = prefs.getString('profile_image_path');
-    if (path != null && File(path).existsSync()) {
-      setState(() => _selectedImage = File(path));
+  Future<void> _loadProfile() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+
+      final data = await Supabase.instance.client
+          .from('student_details')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (data != null) {
+        setState(() {
+          _fName.text = data['first_name'] ?? '';
+          _lName.text = data['last_name'] ?? '';
+          _mName.text = data['middle_name'] ?? '';
+          _age.text = (data['age']?.toString()) ?? '';
+          _bday.text = data['birth_date'] ?? '';
+          _brgy.text = data['barangay_id']?.toString() ?? '';
+          _contact.text = data['contact_number'] ?? '';
+          _email.text = data['email'] ?? '';
+          _school.text = data['school_univ'] ?? '';
+          _year.text = data['year_level'] ?? '';
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading profile: $e");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    debugPrint("Save button pressed"); // Verification
+    if (_fName.text.isEmpty || _lName.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please fill in First and Last name.")));
+      return;
+    }
+
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("User not logged in.")));
+      return;
+    }
+
+    try {
+      await Supabase.instance.client.from('student_details').upsert({
+        'id': user.id,
+        'first_name': _fName.text,
+        'last_name': _lName.text,
+        'middle_name': _mName.text,
+        'age': int.tryParse(_age.text),
+        'birth_date': _bday.text,
+        'barangay_id': _brgy.text,
+        'contact_number': _contact.text,
+        'year_level': _year.text,
+        'email': _email.text,
+        'school_univ': _school.text,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Profile saved successfully!"),
+          backgroundColor: Colors.green,
+        ));
+      }
+    } catch (e) {
+      debugPrint("Error saving: $e");
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
 
@@ -45,41 +111,7 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
     final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       setState(() => _selectedImage = File(pickedFile.path));
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('profile_image_path', pickedFile.path);
     }
-  }
-
-  void _saveProfile() {
-    // 1. Validation
-    if (_fName.text.isEmpty || _lName.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please fill in at least your First and Last name."),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    // 2. Logic for Saving (Supabase integration goes here later!)
-
-    // 3. Success Feedback
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 10),
-            Text("Profile saved successfully!"),
-          ],
-        ),
-        backgroundColor: Colors.green.shade700,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
   }
 
   final List<String> _barangays = [
@@ -101,9 +133,7 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       builder: (context, child) => Theme(
-        data: ThemeData.light().copyWith(
-          colorScheme: ColorScheme.light(primary: Colors.red.shade900),
-        ),
+        data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: Colors.red.shade900)),
         child: child!,
       ),
     );
@@ -116,101 +146,80 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        title: const Text("Student Profile", style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.5, color: Colors.white)),
-        backgroundColor: Colors.red.shade900,
-        elevation: 0,
-        centerTitle: true,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.only(bottom: 30, top: 10),
-              decoration: BoxDecoration(
-                color: Colors.red.shade900,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
-              ),
+      appBar: AppBar(title: const Text("Student Profile", style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)), backgroundColor: Colors.red.shade900, centerTitle: true),
+      body: _isLoading 
+          ? const Center(child: CircularProgressIndicator()) 
+          : SingleChildScrollView(
               child: Column(
                 children: [
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 45,
-                        backgroundColor: Colors.white,
-                        backgroundImage: _selectedImage != null ? FileImage(_selectedImage!) : null,
-                        child: _selectedImage == null 
-                            ? Icon(BootstrapIcons.person_fill, size: 50, color: Colors.red.shade900) 
-                            : null,
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: _pickImage,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.red.shade900, width: 2),
-                            ),
-                            child: Icon(BootstrapIcons.camera_fill, size: 16, color: Colors.red.shade900),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  const Text("EDIT PROFILE", style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 2.0)),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                children: [
-                  _buildFormCard("Personal Information", [
-                    _buildTextField("First Name", _fName, BootstrapIcons.person),
-                    _buildTextField("Last Name", _lName, BootstrapIcons.person),
-                    _buildTextField("Middle Name", _mName, BootstrapIcons.person),
-                    Row(children: [
-                      Expanded(child: _buildTextField("Age", _age, BootstrapIcons.calendar_event, isNumber: true)),
-                      const SizedBox(width: 12),
-                      Expanded(child: InkWell(onTap: () => _selectDate(context), child: IgnorePointer(child: _buildTextField("Birthday", _bday, BootstrapIcons.cake)))),
-                    ]),
-                    _buildDropdown("Barangay", BootstrapIcons.geo_alt),
-                  ]),
-                  const SizedBox(height: 20),
-                  _buildFormCard("Academic Details", [
-                    _buildTextField("School/University", _school, BootstrapIcons.mortarboard),
-                    _buildTextField("Year Level", _year, BootstrapIcons.bar_chart),
-                    _buildTextField("Contact Number", _contact, BootstrapIcons.phone, isNumber: true),
-                    _buildTextField("Email Address", _email, BootstrapIcons.envelope),
-                  ]),
-                  const SizedBox(height: 30),
-                  SizedBox(
+                  Container(
                     width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      onPressed: _saveProfile,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.shade900,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      child: const Text("SAVE PROFILE", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2, color: Colors.white)),
+                    padding: const EdgeInsets.only(bottom: 30, top: 10),
+                    decoration: BoxDecoration(color: Colors.red.shade900, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30))),
+                    child: Column(
+                      children: [
+                        Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 45,
+                              backgroundColor: Colors.white,
+                              backgroundImage: _selectedImage != null ? FileImage(_selectedImage!) : null,
+                              child: _selectedImage == null ? Icon(BootstrapIcons.person_fill, size: 50, color: Colors.red.shade900) : null,
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: _pickImage,
+                                child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.red.shade900, width: 2)), child: Icon(BootstrapIcons.camera_fill, size: 16, color: Colors.red.shade900)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+                        const Text("EDIT PROFILE", style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 2.0)),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      children: [
+                        _buildFormCard("Personal Information", [
+                          _buildTextField("First Name", _fName, BootstrapIcons.person),
+                          _buildTextField("Last Name", _lName, BootstrapIcons.person),
+                          _buildTextField("Middle Name", _mName, BootstrapIcons.person),
+                          Row(children: [
+                            Expanded(child: _buildTextField("Age", _age, BootstrapIcons.calendar_event, isNumber: true)),
+                            const SizedBox(width: 12),
+                            Expanded(child: InkWell(onTap: () => _selectDate(context), child: IgnorePointer(child: _buildTextField("Birthday", _bday, BootstrapIcons.cake)))),
+                          ]),
+                          _buildDropdown("Barangay", BootstrapIcons.geo_alt),
+                        ]),
+                        const SizedBox(height: 20),
+                        _buildFormCard("Academic Details", [
+                          _buildTextField("School/University", _school, BootstrapIcons.mortarboard),
+                          _buildTextField("Year Level", _year, BootstrapIcons.bar_chart),
+                          _buildTextField("Contact Number", _contact, BootstrapIcons.phone, isNumber: true),
+                          _buildTextField("Email Address", _email, BootstrapIcons.envelope),
+                        ]),
+                        const SizedBox(height: 30),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 55,
+                          child: ElevatedButton(
+                            onPressed: _saveProfile,
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade900, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
+                            child: const Text("SAVE CHANGES", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2, color: Colors.white)),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -250,6 +259,7 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 15),
       child: DropdownButtonFormField<String>(
+        value: _barangays.contains(_brgy.text) ? _brgy.text : null,
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon, size: 18, color: Colors.red.shade800),

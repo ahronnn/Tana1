@@ -1,15 +1,16 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'login_page.dart';
-import 'splash_page.dart';
+import 'splash_page.dart'; // Ensure this file is in your lib/ folder
 
 void main() async {
+  // Ensure Flutter bindings are initialized[cite: 4]
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Firebase[cite: 2, 4]
   await Firebase.initializeApp();
 
+  // Initialize Supabase[cite: 2, 4]
   await Supabase.initialize(
     url: 'https://dphudshfuowpskpesord.supabase.co',
     anonKey: 'sb_publishable_hcyC8TsklMy5Mp4N15Gv8Q_zYpHrNJ4',
@@ -28,60 +29,10 @@ class Tana1App extends StatelessWidget {
       title: 'TANA 1',
       theme: ThemeData(
         useMaterial3: true,
+        primarySwatch: Colors.red,
       ),
+      // Starts the app at the splash screen[cite: 4]
       home: const SplashPage(),
-    );
-  }
-}
-
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
-
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  @override
-  void initState() {
-    super.initState();
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) {
-              return const LoginPage();
-            },
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
-              );
-            },
-            transitionDuration: const Duration(milliseconds: 800),
-          ),
-        );
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40.0),
-            child: Image(
-              image: AssetImage('assets/images/logo.png'),
-              width: 220,
-              height: 220,
-              fit: BoxFit.contain,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
