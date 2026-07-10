@@ -236,48 +236,61 @@ class _HomePageState extends State<HomePage> {
                     _buildNewsCarousel(),
                     const SizedBox(height: 10),
                     _buildNewsDots(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 26),
                     const Text(
                       'Quick Actions',
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Jump straight to what you need.',
+                      style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 14),
                     GridView.count(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       crossAxisCount: 2,
                       crossAxisSpacing: 14,
                       mainAxisSpacing: 14,
-                      childAspectRatio: 1.3,
+                      childAspectRatio: 0.98,
                       children: [
                         _buildActionTile(
-                          BootstrapIcons.file_earmark_text,
-                          "Application Hub",
-                          () => Navigator.push(
+                          icon: BootstrapIcons.file_earmark_text_fill,
+                          title: "Application Hub",
+                          subtitle: "Apply or manage",
+                          accent: Colors.red.shade800,
+                          onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const SubmissionHubPage()),
                           ),
                         ),
                         _buildActionTile(
-                          BootstrapIcons.receipt,
-                          "Stub",
-                          () => Navigator.push(
+                          icon: BootstrapIcons.receipt,
+                          title: "Stub",
+                          subtitle: "View your payout",
+                          accent: Colors.teal.shade600,
+                          onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const StubPage()),
                           ),
                         ),
                         _buildActionTile(
-                          BootstrapIcons.graph_up,
-                          "Track Status",
-                          () => Navigator.push(
+                          icon: BootstrapIcons.graph_up_arrow,
+                          title: "Track Status",
+                          subtitle: "Check progress",
+                          accent: Colors.blue.shade700,
+                          onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const TrackStatusPage()),
                           ),
                         ),
                         _buildActionTile(
-                          BootstrapIcons.question_circle,
-                          "Support",
-                          () => Navigator.push(
+                          icon: BootstrapIcons.headset,
+                          title: "Support",
+                          subtitle: "Get help",
+                          accent: Colors.amber.shade800,
+                          onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(builder: (context) => const SupportPage()),
                           ),
@@ -454,7 +467,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ---------------------------------------------------------------------
-  // Hero card — profile button now sits top-right, inside the card.
+  // Hero card — soft gradient + profile button top-right, inside the card.
   // ---------------------------------------------------------------------
   Widget _buildHeroCard(UserModel user) {
     return Container(
@@ -462,8 +475,19 @@ class _HomePageState extends State<HomePage> {
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.red.shade800,
-        borderRadius: BorderRadius.circular(14),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.red.shade800, Color.lerp(Colors.red.shade800, Colors.black, 0.18)!],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.shade800.withOpacity(0.30),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -491,19 +515,26 @@ class _HomePageState extends State<HomePage> {
                         style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                       ),
                 const SizedBox(height: 14),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(BootstrapIcons.info_circle, color: Colors.white70, size: 14),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        "Status: ${user.applicationStatus}",
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(BootstrapIcons.info_circle, color: Colors.white70, size: 14),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          "Status: ${user.applicationStatus}",
+                          style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -653,26 +684,87 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildActionTile(IconData icon, String title, VoidCallback onTap) {
+  // ---------------------------------------------------------------------
+  // Quick Action tile — gradient icon badge + subtitle + accent per action,
+  // matching the option-card language used across the hub and forms.
+  // ---------------------------------------------------------------------
+  Widget _buildActionTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color accent,
+    required VoidCallback onTap,
+  }) {
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
+        splashColor: accent.withOpacity(0.08),
+        highlightColor: accent.withOpacity(0.04),
         child: Container(
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.grey.shade200),
+            boxShadow: [
+              BoxShadow(
+                color: accent.withOpacity(0.10),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 32, color: Colors.red.shade800),
-              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [accent, Color.lerp(accent, Colors.black, 0.15)!],
+                      ),
+                      borderRadius: BorderRadius.circular(13),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withOpacity(0.35),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Icon(icon, color: Colors.white, size: 20),
+                  ),
+                  Container(
+                    width: 24,
+                    height: 24,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(BootstrapIcons.arrow_up_right, color: accent, size: 12),
+                  ),
+                ],
+              ),
+              const Spacer(),
               Text(
                 title,
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: Colors.black87),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
               ),
             ],
           ),
