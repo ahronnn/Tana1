@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'student_info_page.dart';
 import 'submission_hub.dart'; // Ensure this file exists
 import 'stub_page.dart';
@@ -39,11 +40,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final UserModel currentUser = UserModel(
-    name: "Ahron John",
-    email: "ahron@tana1app.com",
+  UserModel currentUser = UserModel(
+    name: "Student",
+    email: "",
     applicationStatus: "No active application",
   );
+  bool _loadingUser = true;
 
   final List<NewsItem> newsItems = [
     NewsItem(
@@ -106,6 +108,49 @@ class _HomePageState extends State<HomePage> {
   int _currentNewsIndex = 0;
 
   int get _unreadCount => notifications.where((n) => !n.read).length;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  // Pulls the logged-in student's real name from the profiles table
+  // (the first_name/last_name captured at registration) so the hero
+  // card greets the actual account, not a hardcoded placeholder.
+  Future<void> _loadUserProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _loadingUser = false);
+      return;
+    }
+
+    try {
+      final data = await Supabase.instance.client
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('firebase_uid', user.uid)
+          .maybeSingle();
+
+      final firstName = (data?['first_name'] as String?)?.trim() ?? '';
+      final lastName = (data?['last_name'] as String?)?.trim() ?? '';
+      final fullName = '$firstName $lastName'.trim();
+
+      if (mounted) {
+        setState(() {
+          currentUser = UserModel(
+            name: fullName.isNotEmpty ? fullName : (user.email ?? "Student"),
+            email: user.email ?? '',
+            applicationStatus: currentUser.applicationStatus,
+          );
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading user profile: $e");
+    } finally {
+      if (mounted) setState(() => _loadingUser = false);
+    }
+  }
 
   // ---------------------------------------------------------------------
   // Back button: confirm, then log out and return to Login (not Welcome).
@@ -432,10 +477,19 @@ class _HomePageState extends State<HomePage> {
                   style: TextStyle(color: Colors.white70, fontSize: 14),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  user.name,
-                  style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                ),
+                _loadingUser
+                    ? Container(
+                        width: 140,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      )
+                    : Text(
+                        user.name,
+                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
                 const SizedBox(height: 14),
                 Row(
                   mainAxisSize: MainAxisSize.min,
