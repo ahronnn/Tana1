@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'register_page.dart'; // Import the registration screen
+import 'register_page.dart';
+import 'login_page.dart';
+import 'forgot_password_page.dart';
 
 class AuthWelcomePage extends StatelessWidget {
   const AuthWelcomePage({super.key});
@@ -15,7 +17,7 @@ class AuthWelcomePage extends StatelessWidget {
             children: [
               const Spacer(flex: 2),
 
-              // 1. The Main Branded Logo
+              // Branded logo
               Center(
                 child: Image.asset(
                   'assets/images/logo.png',
@@ -25,52 +27,54 @@ class AuthWelcomePage extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(height: 40),
-
-              // 2. Bold Red Sub-heading
-              const Text(
-                'Log in to your Account',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
               const SizedBox(height: 24),
 
-              // 3. Log In Action Button
+              Text(
+                'Tanauan Educational Assistance',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.red.shade800,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Log in or create an account to continue',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+              ),
+
+              const SizedBox(height: 40),
+
+              // Log In — primary action
               SizedBox(
                 width: double.infinity,
-                height: 52,
-                child: OutlinedButton(
+                height: 56,
+                child: ElevatedButton(
                   onPressed: () {
-                    // We will add the actual login inputs screen layout here later!
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (context) => const LoginPage()),
+                    );
                   },
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF0EAE9),
-                    side: const BorderSide(color: Colors.black12, width: 1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade800,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   child: const Text(
-                    'Log in',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    'Log In',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
-              // 4. Create New Account Action Button (Only one copy!)
+              // Create Account — secondary action
               SizedBox(
                 width: double.infinity,
-                height: 52,
+                height: 56,
                 child: OutlinedButton(
                   onPressed: () {
                     Navigator.of(context).push(
@@ -78,66 +82,36 @@ class AuthWelcomePage extends StatelessWidget {
                     );
                   },
                   style: OutlinedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF0EAE9),
-                    side: const BorderSide(color: Colors.black12, width: 1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
+                    side: BorderSide(color: Colors.red.shade800),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
-                  child: const Text(
-                    'Create new account',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Text(
+                    'Create New Account',
+                    style: TextStyle(color: Colors.red.shade800, fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
 
               const SizedBox(height: 20),
 
-              // 5. Forgot Password Text Link
               GestureDetector(
-                onTap: () {},
-                child: const Text(
-                  'Forgot Password',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const ForgotPasswordPage()),
+                  );
+                },
+                child: Text(
+                  'Forgot Password?',
                   style: TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.w500,
+                    color: Colors.red.shade800,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
                     decoration: TextDecoration.underline,
                   ),
                 ),
               ),
 
               const Spacer(flex: 3),
-
-              // 6. Persistent Bottom Account Sign-up Notice
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Don't you have an account? ",
-                    style: TextStyle(color: Colors.red, fontSize: 13),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (context) => const RegisterPage()),
-                      );
-                    },
-                    child: const Text(
-                      'Sign Up',
-                      style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
