@@ -39,13 +39,31 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   UserModel currentUser = UserModel(
     name: "Student",
     email: "",
     applicationStatus: "No active application",
   );
   bool _loadingUser = true;
+  String? _profileImageUrl;
+  late final AnimationController _pulseController =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
+  // Expanding "live alert" ring — separate from the opacity pulse above,
+  // this one runs one-directional and loops, like a radar ping.
+  late final AnimationController _pingController =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat();
+
+  // ---------------------------------------------------------------------
+  // Entrance animation — one-shot controller that drives a staggered
+  // fade + gentle rise for the hero card, then announcements, then the
+  // quick action tiles (each tile slightly offset from the last so they
+  // "cascade" in rather than popping together).
+  // ---------------------------------------------------------------------
+  late final AnimationController _entranceController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
 
   final List<NewsItem> newsItems = [
     NewsItem(
@@ -86,24 +104,9 @@ class _HomePageState extends State<HomePage> {
     ),
   ];
 
-  final List<NotificationItem> notifications = [
-    NotificationItem(
-      title: "Application Received",
-      message: "Your application has been received and is awaiting review.",
-      time: "2h ago",
-    ),
-    NotificationItem(
-      title: "Document Reminder",
-      message: "Please upload your Certificate of Registration to complete your requirements.",
-      time: "1d ago",
-    ),
-    NotificationItem(
-      title: "Payout Schedule Posted",
-      message: "Batch 2 payout schedule has been posted. Check the Announcements section.",
-      time: "3d ago",
-      read: true,
-    ),
-  ];
+  // Empty for now — populate this (or wire it up to a real notifications
+  // source) whenever we're ready to actually notify students.
+  final List<NotificationItem> notifications = [];
 
   int _currentNewsIndex = 0;
 
@@ -113,11 +116,46 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadUserProfile();
+    _entranceController.forward();
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _pingController.dispose();
+    _entranceController.dispose();
+    super.dispose();
+  }
+
+  // Wraps [child] in a fade + subtle upward-rise reveal, timed to a slice
+  // of the shared _entranceController's 0..1 timeline. Call with
+  // increasing (start, end) pairs in build order to get a cascading,
+  // "each section/icon appears after the last" effect.
+  Widget _fadeIn(Widget child, {required double start, required double end}) {
+    final curved = CurvedAnimation(
+      parent: _entranceController,
+      curve: Interval(start.clamp(0.0, 1.0), end.clamp(0.0, 1.0), curve: Curves.easeOutCubic),
+    );
+    return AnimatedBuilder(
+      animation: curved,
+      child: child,
+      builder: (context, child) {
+        return Opacity(
+          opacity: curved.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - curved.value) * 16),
+            child: child,
+          ),
+        );
+      },
+    );
   }
 
   // Pulls the logged-in student's real name from the profiles table
-  // (the first_name/last_name captured at registration) so the hero
-  // card greets the actual account, not a hardcoded placeholder.
+  // (the first_name/last_name captured at registration), plus their
+  // uploaded photo from student_details.image_url (same row the
+  // Student Profile page writes to), so the hero card greets the
+  // actual account — name AND face — not a hardcoded placeholder.
   Future<void> _loadUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -126,23 +164,56 @@ class _HomePageState extends State<HomePage> {
     }
 
     try {
-      final data = await Supabase.instance.client
+      final profile = await Supabase.instance.client
           .from('profiles')
-          .select('first_name, last_name')
+          .select('id, first_name, last_name')
           .eq('firebase_uid', user.uid)
           .maybeSingle();
 
-      final firstName = (data?['first_name'] as String?)?.trim() ?? '';
-      final lastName = (data?['last_name'] as String?)?.trim() ?? '';
+      final firstName = (profile?['first_name'] as String?)?.trim() ?? '';
+      final lastName = (profile?['last_name'] as String?)?.trim() ?? '';
       final fullName = '$firstName $lastName'.trim();
+
+      // student_details.id is the same id as profiles.id (1:1 FK), and
+      // that's where the profile picture uploaded on the Student Profile
+      // page actually lives.
+      String? imageUrl;
+      final profileId = profile?['id'] as String?;
+      if (profileId != null) {
+        final details = await Supabase.instance.client
+            .from('student_details')
+            .select('image_url')
+            .eq('id', profileId)
+            .maybeSingle();
+        imageUrl = details?['image_url'] as String?;
+      }
+
+      // Pull the latest application's status too, same source the
+      // Application Hub reads from, so the hero card reflects reality
+      // instead of the hardcoded placeholder.
+      String applicationStatus = "No active application";
+      if (profileId != null) {
+        final application = await Supabase.instance.client
+            .from('applications')
+            .select('status')
+            .eq('student_id', profileId)
+            .order('applied_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+        final status = (application?['status'] as String?)?.trim();
+        if (status != null && status.isNotEmpty) {
+          applicationStatus = status;
+        }
+      }
 
       if (mounted) {
         setState(() {
           currentUser = UserModel(
             name: fullName.isNotEmpty ? fullName : (user.email ?? "Student"),
             email: user.email ?? '',
-            applicationStatus: currentUser.applicationStatus,
+            applicationStatus: applicationStatus,
           );
+          _profileImageUrl = imageUrl;
         });
       }
     } catch (e) {
@@ -222,31 +293,54 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeroCard(currentUser),
+              // Hero card — first to appear.
+              _fadeIn(_buildHeroCard(currentUser), start: 0.0, end: 0.45),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Announcements',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    // Announcements — fades in next, slightly overlapping
+                    // the tail end of the hero card's reveal.
+                    _fadeIn(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Announcements',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildNewsCarousel(),
+                          const SizedBox(height: 10),
+                          _buildNewsDots(),
+                        ],
+                      ),
+                      start: 0.18,
+                      end: 0.58,
                     ),
-                    const SizedBox(height: 12),
-                    _buildNewsCarousel(),
-                    const SizedBox(height: 10),
-                    _buildNewsDots(),
                     const SizedBox(height: 26),
-                    const Text(
-                      'Quick Actions',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Jump straight to what you need.',
-                      style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+                    // Quick Actions header — fades in after announcements.
+                    _fadeIn(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Quick Actions',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Jump straight to what you need.',
+                            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                      start: 0.38,
+                      end: 0.68,
                     ),
                     const SizedBox(height: 14),
+                    // Each quick-action tile cascades in one after another.
                     GridView.count(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -255,45 +349,66 @@ class _HomePageState extends State<HomePage> {
                       mainAxisSpacing: 14,
                       childAspectRatio: 0.98,
                       children: [
-                        _buildActionTile(
-                          icon: BootstrapIcons.file_earmark_text_fill,
-                          title: "Application Hub",
-                          subtitle: "Apply or manage",
-                          accent: Colors.red.shade800,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const SubmissionHubPage()),
+                        _fadeIn(
+                          _buildActionTile(
+                            icon: BootstrapIcons.file_earmark_text_fill,
+                            title: "Application Hub",
+                            subtitle: "Apply or manage",
+                            accent: Colors.red.shade800,
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const SubmissionHubPage()),
+                              );
+                              // Status may have changed (new submission, etc.) —
+                              // refresh so the hero card reflects it right away.
+                              _loadUserProfile();
+                            },
                           ),
+                          start: 0.48,
+                          end: 0.85,
                         ),
-                        _buildActionTile(
-                          icon: BootstrapIcons.receipt,
-                          title: "Stub",
-                          subtitle: "View your payout",
-                          accent: Colors.teal.shade600,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const StubPage()),
+                        _fadeIn(
+                          _buildActionTile(
+                            icon: BootstrapIcons.receipt,
+                            title: "Stub",
+                            subtitle: "View your payout",
+                            accent: Colors.teal.shade600,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const StubPage()),
+                            ),
                           ),
+                          start: 0.56,
+                          end: 0.90,
                         ),
-                        _buildActionTile(
-                          icon: BootstrapIcons.graph_up_arrow,
-                          title: "Track Status",
-                          subtitle: "Check progress",
-                          accent: Colors.blue.shade700,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const TrackStatusPage()),
+                        _fadeIn(
+                          _buildActionTile(
+                            icon: BootstrapIcons.graph_up_arrow,
+                            title: "Track Status",
+                            subtitle: "Check progress",
+                            accent: Colors.blue.shade700,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const TrackStatusPage()),
+                            ),
                           ),
+                          start: 0.64,
+                          end: 0.95,
                         ),
-                        _buildActionTile(
-                          icon: BootstrapIcons.headset,
-                          title: "Support",
-                          subtitle: "Get help",
-                          accent: Colors.amber.shade800,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const SupportPage()),
+                        _fadeIn(
+                          _buildActionTile(
+                            icon: BootstrapIcons.headset,
+                            title: "Support",
+                            subtitle: "Get help",
+                            accent: Colors.amber.shade800,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const SupportPage()),
+                            ),
                           ),
+                          start: 0.72,
+                          end: 1.0,
                         ),
                       ],
                     ),
@@ -393,7 +508,32 @@ class _HomePageState extends State<HomePage> {
                     const Divider(height: 1),
                     Expanded(
                       child: notifications.isEmpty
-                          ? const Center(child: Text('No notifications yet'))
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(BootstrapIcons.bell_slash, size: 22, color: Colors.grey.shade400),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    "No notifications yet",
+                                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Colors.grey.shade700),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "We'll let you know when there's an update.",
+                                    style: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
+                                  ),
+                                ],
+                              ),
+                            )
                           : ListView.separated(
                               controller: scrollController,
                               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -467,18 +607,166 @@ class _HomePageState extends State<HomePage> {
   }
 
   // ---------------------------------------------------------------------
-  // Hero card — soft gradient + profile button top-right, inside the card.
+  // Hero card — deep red-to-maroon gradient with a quiet watermark of
+  // concentric rings (civic/seal motif, fitting a city assistance app),
+  // an eyebrow + name hierarchy, and a gradient-ring avatar. The one bold
+  // move on the card is the status badge's live ping when nothing is on
+  // file — everything else stays deliberately quiet around it.
   // ---------------------------------------------------------------------
+  // Status badge — color-coded by application status. "No active
+  // application" gets a genuine live-alert treatment: a small dot that
+  // pings outward on loop, the way a recording or live indicator would,
+  // so it actually reads as "this needs attention" rather than a
+  // barely-there fade.
+  // ---------------------------------------------------------------------
+  ({Color color, IconData icon, bool pulse}) _statusStyle(String status) {
+    final s = status.toLowerCase();
+    if (s.contains('no active') || s.contains('none')) {
+      return (color: Colors.red.shade400, icon: BootstrapIcons.exclamation_triangle_fill, pulse: true);
+    }
+    if (s.contains('reject') || s.contains('denied')) {
+      return (color: Colors.red.shade400, icon: BootstrapIcons.x_circle_fill, pulse: false);
+    }
+    if (s.contains('pending') || s.contains('review') || s.contains('process')) {
+      return (color: Colors.amber.shade400, icon: BootstrapIcons.hourglass_split, pulse: false);
+    }
+    if (s.contains('approve') || s.contains('active') || s.contains('claim')) {
+      return (color: Colors.green.shade400, icon: BootstrapIcons.check_circle_fill, pulse: false);
+    }
+    return (color: Colors.white70, icon: BootstrapIcons.info_circle, pulse: false);
+  }
+
+  // Small "live" dot with an expanding, fading ring behind it — the
+  // signature attention-grabber for the warning state.
+  Widget _buildPingDot(Color color) {
+    return SizedBox(
+      width: 10,
+      height: 10,
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          AnimatedBuilder(
+            animation: _pingController,
+            builder: (context, child) {
+              final t = _pingController.value;
+              return Opacity(
+                opacity: (1 - t).clamp(0.0, 1.0) * 0.65,
+                child: Transform.scale(
+                  scale: 1 + t * 2.4,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  ),
+                ),
+              );
+            },
+          ),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [BoxShadow(color: color.withOpacity(0.7), blurRadius: 5)],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(String status) {
+    final style = _statusStyle(status);
+
+    Widget badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: style.color.withOpacity(0.20),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: style.color.withOpacity(0.55)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (style.pulse) ...[
+            _buildPingDot(style.color),
+            const SizedBox(width: 7),
+          ] else ...[
+            Icon(style.icon, color: style.color, size: 13),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              "Status: $status",
+              style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (!style.pulse) return badge;
+
+    // Subtle breathing glow around the whole pill, layered on top of the
+    // ping dot, so the warning reads clearly without feeling frantic.
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        final glow = _pulseController.value;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: style.color.withOpacity(0.12 + glow * 0.22),
+                blurRadius: 6 + glow * 10,
+                spreadRadius: glow * 1.5,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: badge,
+    );
+  }
+
+  // Faint concentric rings bleeding off the corner — a quiet civic-seal
+  // watermark rather than a flat block of color.
+  Widget _buildHeroWatermark() {
+    Widget ring(double size) => Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withOpacity(0.06), width: 1.2),
+          ),
+        );
+
+    return Positioned(
+      top: -40,
+      right: -40,
+      child: IgnorePointer(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [ring(170), ring(120), ring(70)],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeroCard(UserModel user) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.red.shade800, Color.lerp(Colors.red.shade800, Colors.black, 0.18)!],
+          colors: [Colors.red.shade800, Color.lerp(Colors.red.shade800, Colors.black, 0.24)!],
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
@@ -489,72 +777,89 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Welcome back,",
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(height: 2),
-                _loadingUser
-                    ? Container(
-                        width: 140,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(6),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Stack(
+          children: [
+            _buildHeroWatermark(),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "WELCOME BACK",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.55),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.4,
+                          ),
                         ),
-                      )
-                    : Text(
-                        user.name,
-                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(20),
+                        const SizedBox(height: 4),
+                        _loadingUser
+                            ? Container(
+                                width: 140,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: Colors.white24,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              )
+                            : Text(
+                                user.name,
+                                style: const TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.bold, height: 1.15),
+                              ),
+                        const SizedBox(height: 14),
+                        _buildStatusBadge(user.applicationStatus),
+                      ],
+                    ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(BootstrapIcons.info_circle, color: Colors.white70, size: 14),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          "Status: ${user.applicationStatus}",
-                          style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
-                          overflow: TextOverflow.ellipsis,
+                  const SizedBox(width: 12),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(27),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const StudentInfoPage()),
+                      );
+                      // Photo (or name) may have changed while on the profile page —
+                      // refresh so the hero card reflects it right away.
+                      _loadUserProfile();
+                    },
+                    child: Container(
+                      width: 54,
+                      height: 54,
+                      padding: const EdgeInsets.all(2.5),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Colors.white.withOpacity(0.9), Colors.white.withOpacity(0.25)],
                         ),
                       ),
-                    ],
+                      child: CircleAvatar(
+                        radius: 24.5, // fills the 54px ring (minus 2.5px padding each side)
+                        backgroundColor: Colors.red.shade900,
+                        backgroundImage: (_profileImageUrl != null && _profileImageUrl!.isNotEmpty)
+                            ? NetworkImage(_profileImageUrl!)
+                            : null,
+                        child: (_profileImageUrl == null || _profileImageUrl!.isEmpty)
+                            ? const Icon(BootstrapIcons.person_circle, color: Colors.white, size: 30)
+                            : null,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const StudentInfoPage()),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
-              child: const Icon(BootstrapIcons.person_circle, color: Colors.white, size: 30),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

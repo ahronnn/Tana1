@@ -254,28 +254,107 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
       ),
       body: _isLoading ? const Center(child: CircularProgressIndicator()) : SingleChildScrollView(
         child: Column(children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.only(bottom: 30, top: 10),
-            decoration: BoxDecoration(color: Colors.red.shade800, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28))),
-            child: Column(children: [
-              Stack(children: [
-                CircleAvatar(
-                  radius: 45,
-                  backgroundColor: Colors.white,
-                  backgroundImage: _selectedImage != null ? FileImage(_selectedImage!) : (_profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null) as ImageProvider?,
-                  child: _selectedImage == null && _profileImageUrl == null ? Icon(BootstrapIcons.person_fill, size: 50, color: Colors.red.shade800) : null,
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Colors.red.shade800, Color.lerp(Colors.red.shade800, Colors.black, 0.24)!],
                 ),
-                Positioned(bottom: 0, right: 0, child: GestureDetector(onTap: _pickImage, child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: Colors.red.shade800, width: 2)), child: Icon(BootstrapIcons.camera_fill, size: 16, color: Colors.red.shade800)))),
-              ]),
-              const SizedBox(height: 15),
-              Text(
-                _fName.text.isNotEmpty ? "${_fName.text} ${_lName.text}".trim() : "Your Profile",
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
               ),
-              const SizedBox(height: 4),
-              const Text("Tap the camera icon to update your photo", style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w500)),
-            ]),
+              child: Stack(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: Padding(
+                    padding: const EdgeInsets.only(top: 20, bottom: 30),
+                    child: Column(children: [
+                      Text(
+                        "STUDENT PROFILE",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.55),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Watermark rings, now centered directly behind
+                          // the profile picture instead of the corner.
+                          IgnorePointer(
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [_ring(170), _ring(130), _ring(90)],
+                            ),
+                          ),
+                          Stack(children: [
+                        Container(
+                          width: 96,
+                          height: 96,
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Colors.white.withOpacity(0.9), Colors.white.withOpacity(0.25)],
+                            ),
+                          ),
+                          child: CircleAvatar(
+                            radius: 45, // fills the 96px ring (minus 3px padding each side)
+                            backgroundColor: Colors.white,
+                            backgroundImage: _selectedImage != null
+                                ? FileImage(_selectedImage!)
+                                : (_profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null) as ImageProvider?,
+                            child: _selectedImage == null && _profileImageUrl == null
+                                ? Icon(BootstrapIcons.person_fill, size: 46, color: Colors.red.shade800)
+                                : null,
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: _pickImage,
+                            child: Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.red.shade800, width: 2),
+                                boxShadow: [
+                                  BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6, offset: const Offset(0, 2)),
+                                ],
+                              ),
+                              child: Icon(BootstrapIcons.camera_fill, size: 15, color: Colors.red.shade800),
+                            ),
+                          ),
+                        ),
+                          ]),
+                        ],
+                      ),
+                      const SizedBox(height: 15),
+                      Text(
+                        _fName.text.isNotEmpty ? "${_fName.text} ${_lName.text}".trim() : "Your Profile",
+                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, height: 1.15),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        "Tap the camera icon to update your photo",
+                        style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                    ]),
+                  ),
+                  ),
+                ],
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.all(20.0),
@@ -320,6 +399,17 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
       ),
     );
   }
+
+  // A single faint ring outline — used to build the concentric watermark
+  // that now sits centered directly behind the profile picture.
+  Widget _ring(double size) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.2),
+        ),
+      );
 
   Widget _buildFormCard(String title, List<Widget> children) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

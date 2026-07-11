@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'submission_form.dart';
+import 'support_page.dart';
 
 class SubmissionHubPage extends StatefulWidget {
   const SubmissionHubPage({super.key});
@@ -149,7 +150,7 @@ class _SubmissionHubPageState extends State<SubmissionHubPage> {
             _buildEligibilityTips(),
 
             const SizedBox(height: 24),
-            _buildSupportShortcut(),
+            _buildSupportShortcut(context),
           ],
         ),
       ),
@@ -328,14 +329,21 @@ class _SubmissionHubPageState extends State<SubmissionHubPage> {
     );
   }
 
-  Widget _buildSupportShortcut() {
+  // ---------------------------------------------------------------------
+  // Need Help? shortcut — now actually navigates to the Support page
+  // instead of doing nothing on tap.
+  // ---------------------------------------------------------------------
+  Widget _buildSupportShortcut(BuildContext context) {
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
-          // TODO: wire up to your actual support/contact page or chat.
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const SupportPage()),
+          );
         },
         child: Container(
           padding: const EdgeInsets.all(16),
