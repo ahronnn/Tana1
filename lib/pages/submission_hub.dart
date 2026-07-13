@@ -13,14 +13,49 @@ class SubmissionHubPage extends StatefulWidget {
   State<SubmissionHubPage> createState() => _SubmissionHubPageState();
 }
 
-class _SubmissionHubPageState extends State<SubmissionHubPage> {
+class _SubmissionHubPageState extends State<SubmissionHubPage> with TickerProviderStateMixin {
   bool _loading = true;
   Map<String, dynamic>? _latestApplication;
+
+  // One-shot controller that staggers each section into view — same
+  // cascading fade-in language used on Home and Support, so this page
+  // feels consistent with the rest of the app.
+  late final AnimationController _entranceController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  );
 
   @override
   void initState() {
     super.initState();
     _loadLatestApplication();
+    _entranceController.forward();
+  }
+
+  @override
+  void dispose() {
+    _entranceController.dispose();
+    super.dispose();
+  }
+
+  Widget _fadeIn(Widget child, {required double start, required double end}) {
+    final curved = CurvedAnimation(
+      parent: _entranceController,
+      curve: Interval(start.clamp(0.0, 1.0), end.clamp(0.0, 1.0), curve: Curves.easeOutCubic),
+    );
+    return AnimatedBuilder(
+      animation: curved,
+      child: child,
+      builder: (context, child) {
+        return Opacity(
+          opacity: curved.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - curved.value) * 16),
+            child: child,
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _loadLatestApplication() async {
@@ -90,67 +125,84 @@ class _SubmissionHubPageState extends State<SubmissionHubPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (!_loading && _latestApplication != null) ...[
-              _buildStatusBanner(_latestApplication!),
+              _fadeIn(_buildStatusBanner(_latestApplication!), start: 0.0, end: 0.4),
               const SizedBox(height: 20),
             ],
 
-            const Text(
-              "What would you like to do?",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "Select the option that matches your situation.",
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            _fadeIn(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "What would you like to do?",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Select the option that matches your situation.",
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  ),
+                ],
+              ),
+              start: 0.12,
+              end: 0.48,
             ),
             const SizedBox(height: 18),
 
-            _buildOptionCard(
-              context,
-              title: "New Application",
-              subtitle: "For first-time applicants",
-              docCount: 3,
-              icon: BootstrapIcons.person_plus_fill,
-              accent: Colors.red.shade800,
-              accentSoft: Colors.red.shade50,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SubmissionFormPage(isNewApplicant: true),
-                  ),
-                );
-              },
+            _fadeIn(
+              _buildOptionCard(
+                context,
+                title: "New Application",
+                subtitle: "For first-time applicants",
+                docCount: 4,
+                icon: BootstrapIcons.person_plus_fill,
+                accent: Colors.red.shade800,
+                accentSoft: Colors.red.shade50,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SubmissionFormPage(isNewApplicant: true),
+                    ),
+                  );
+                },
+              ),
+              start: 0.2,
+              end: 0.55,
             ),
 
             const SizedBox(height: 14),
 
-            _buildOptionCard(
-              context,
-              title: "Repeat Availers",
-              subtitle: "For returning availers",
-              docCount: 2,
-              icon: BootstrapIcons.file_earmark_arrow_up_fill,
-              accent: Colors.red.shade800,
-              accentSoft: Colors.red.shade50,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SubmissionFormPage(isNewApplicant: false),
-                  ),
-                );
-              },
+            _fadeIn(
+              _buildOptionCard(
+                context,
+                title: "Repeat Availers",
+                subtitle: "For returning availers",
+                docCount: 2,
+                icon: BootstrapIcons.file_earmark_arrow_up_fill,
+                accent: Colors.red.shade800,
+                accentSoft: Colors.red.shade50,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SubmissionFormPage(isNewApplicant: false),
+                    ),
+                  );
+                },
+              ),
+              start: 0.28,
+              end: 0.62,
             ),
 
             const SizedBox(height: 28),
-            _buildHowItWorks(),
+            _fadeIn(_buildHowItWorks(), start: 0.38, end: 0.72),
 
             const SizedBox(height: 24),
-            _buildEligibilityTips(),
+            _fadeIn(_buildEligibilityTips(), start: 0.48, end: 0.82),
 
             const SizedBox(height: 24),
-            _buildSupportShortcut(context),
+            _fadeIn(_buildSupportShortcut(context), start: 0.58, end: 0.92),
           ],
         ),
       ),

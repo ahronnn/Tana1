@@ -13,7 +13,7 @@ class StubPage extends StatefulWidget {
   State<StubPage> createState() => _StubPageState();
 }
 
-class _StubPageState extends State<StubPage> {
+class _StubPageState extends State<StubPage> with TickerProviderStateMixin {
   final supabase = Supabase.instance.client;
 
   bool _loading = true;
@@ -31,10 +31,56 @@ class _StubPageState extends State<StubPage> {
   String? _claimStatus;
   DateTime? _claimedAt;
 
+  // One-shot controller that staggers the stub card and the print button
+  // into view — same cascading fade-in language used across the rest of
+  // the app. Only started once loading finishes, since the content it
+  // animates doesn't exist in the tree until then.
+  late final AnimationController _entranceController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
   @override
   void initState() {
     super.initState();
     _loadStub();
+  }
+
+  @override
+  void dispose() {
+    _entranceController.dispose();
+    super.dispose();
+  }
+
+  Widget _fadeIn(Widget child, {required double start, required double end}) {
+    final curved = CurvedAnimation(
+      parent: _entranceController,
+      curve: Interval(start.clamp(0.0, 1.0), end.clamp(0.0, 1.0), curve: Curves.easeOutCubic),
+    );
+    return AnimatedBuilder(
+      animation: curved,
+      child: child,
+      builder: (context, child) {
+        return Opacity(
+          opacity: curved.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - curved.value) * 16),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  // Flips off the loading flag (optionally with an error) and kicks off
+  // the entrance animation now that real content is about to be built.
+  void _finishLoading({String? error}) {
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _error = error;
+    });
+    _entranceController.forward(from: 0);
   }
 
   Future<void> _loadStub() async {
@@ -46,10 +92,7 @@ class _StubPageState extends State<StubPage> {
     try {
       final firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser == null) {
-        setState(() {
-          _error = "No user session found. Please log in again.";
-          _loading = false;
-        });
+        _finishLoading(error: "No user session found. Please log in again.");
         return;
       }
 
@@ -61,10 +104,7 @@ class _StubPageState extends State<StubPage> {
           .maybeSingle();
 
       if (student == null) {
-        setState(() {
-          _error = "Student profile not found. Please complete your profile first.";
-          _loading = false;
-        });
+        _finishLoading(error: "Student profile not found. Please complete your profile first.");
         return;
       }
 
@@ -116,12 +156,9 @@ class _StubPageState extends State<StubPage> {
         });
       }
 
-      setState(() => _loading = false);
+      _finishLoading();
     } catch (e) {
-      setState(() {
-        _error = "Something went wrong loading your stub: $e";
-        _loading = false;
-      });
+      _finishLoading(error: "Something went wrong loading your stub: $e");
     }
   }
 
@@ -216,79 +253,95 @@ class _StubPageState extends State<StubPage> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Text(_error!, textAlign: TextAlign.center),
+                  child: _fadeIn(
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Text(_error!, textAlign: TextAlign.center),
+                    ),
+                    start: 0.0,
+                    end: 0.6,
                   ),
                 )
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.grey.shade200),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 5),
-                            )
-                          ],
+                      _fadeIn(
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.grey.shade200),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
+                              )
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(BootstrapIcons.receipt, color: Colors.red.shade900, size: 30),
+                                  const SizedBox(width: 10),
+                                  const Text("Official Assistance Stub",
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              const Divider(height: 30),
+                              _infoRow("Student Name", _fullName.isEmpty ? "N/A" : _fullName),
+                              _infoRow("Year Level", _yearLevel.isEmpty ? "N/A" : _yearLevel),
+                              _infoRow("Barangay", _barangayName.isEmpty ? "N/A" : _barangayName),
+                              const Divider(height: 30),
+                              _infoRow("Ticket Number", _ticketNumber ?? "N/A"),
+                              _infoRow("Application Status", _status ?? "N/A"),
+                              _infoRow("Claim Status", _claimStatus ?? "N/A"),
+                              _infoRow("Date Claimed", _formatDate(_claimedAt)),
+                              const Divider(height: 30),
+                              _infoRow("Place to Claim", _claimLocation),
+                            ],
+                          ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(BootstrapIcons.receipt, color: Colors.red.shade900, size: 30),
-                                const SizedBox(width: 10),
-                                const Text("Official Assistance Stub",
-                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const Divider(height: 30),
-                            _infoRow("Student Name", _fullName.isEmpty ? "N/A" : _fullName),
-                            _infoRow("Year Level", _yearLevel.isEmpty ? "N/A" : _yearLevel),
-                            _infoRow("Barangay", _barangayName.isEmpty ? "N/A" : _barangayName),
-                            const Divider(height: 30),
-                            _infoRow("Ticket Number", _ticketNumber ?? "N/A"),
-                            _infoRow("Application Status", _status ?? "N/A"),
-                            _infoRow("Claim Status", _claimStatus ?? "N/A"),
-                            _infoRow("Date Claimed", _formatDate(_claimedAt)),
-                            const Divider(height: 30),
-                            _infoRow("Place to Claim", _claimLocation),
-                          ],
-                        ),
+                        start: 0.0,
+                        end: 0.5,
                       ),
                       const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 55,
-                        child: ElevatedButton.icon(
-                          onPressed: (_ticketNumber == null) ? null : _printStub,
-                          icon: const Icon(BootstrapIcons.printer, color: Colors.white),
-                          label: const Text("PRINT / EXPORT PDF",
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red.shade900,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
+                      _fadeIn(
+                        Column(
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              height: 55,
+                              child: ElevatedButton.icon(
+                                onPressed: (_ticketNumber == null) ? null : _printStub,
+                                icon: const Icon(BootstrapIcons.printer, color: Colors.white),
+                                label: const Text("PRINT / EXPORT PDF",
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red.shade900,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
+                            if (_ticketNumber == null)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 12),
+                                child: Text(
+                                  "No active application found to generate a stub for.",
+                                  style: TextStyle(color: Colors.grey),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                          ],
                         ),
+                        start: 0.3,
+                        end: 0.8,
                       ),
-                      if (_ticketNumber == null)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 12),
-                          child: Text(
-                            "No active application found to generate a stub for.",
-                            style: TextStyle(color: Colors.grey),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
                     ],
                   ),
                 ),

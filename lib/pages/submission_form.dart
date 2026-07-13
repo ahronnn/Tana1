@@ -21,9 +21,11 @@ class _SubmissionFormPageState extends State<SubmissionFormPage> {
   final Map<String, PlatformFile> _pickedFiles = {};
   bool _isSubmitting = false;
 
+  // Must match application_documents_document_type_check in Supabase
+  // EXACTLY (case, spacing, punctuation) — the DB rejects anything else.
   List<String> get _requiredDocuments => widget.isNewApplicant
-      ? const ["Application Letter", "Birth Certificate", "Proof of Enrollment"]
-      : const ["Report Card / Transcript", "Updated Proof of Enrollment"];
+      ? const ["Certificate of Residency", "Certificate of Indigency", "Report Card / TOR", "School ID"]
+      : const ["Report Card / TOR", "School ID"];
 
   // Unified accent — matches the Application Hub's red palette for both flows.
   Color get _accent => Colors.red.shade800;

@@ -14,7 +14,7 @@ class StudentInfoPage extends StatefulWidget {
   State<StudentInfoPage> createState() => _StudentInfoPageState();
 }
 
-class _StudentInfoPageState extends State<StudentInfoPage> {
+class _StudentInfoPageState extends State<StudentInfoPage> with TickerProviderStateMixin {
   final _fName = TextEditingController();
   final _lName = TextEditingController();
   final _mName = TextEditingController();
@@ -33,10 +33,44 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
   bool _isSaving = false;
   String? _profileId;
 
+  // One-shot controller that staggers the hero header and the two form
+  // cards + save button into view once the profile finishes loading —
+  // same cascading fade-in language used across the rest of the app.
+  late final AnimationController _entranceController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  );
+
   @override
   void initState() {
     super.initState();
     _loadProfile();
+  }
+
+  @override
+  void dispose() {
+    _entranceController.dispose();
+    super.dispose();
+  }
+
+  Widget _fadeIn(Widget child, {required double start, required double end}) {
+    final curved = CurvedAnimation(
+      parent: _entranceController,
+      curve: Interval(start.clamp(0.0, 1.0), end.clamp(0.0, 1.0), curve: Curves.easeOutCubic),
+    );
+    return AnimatedBuilder(
+      animation: curved,
+      child: child,
+      builder: (context, child) {
+        return Opacity(
+          opacity: curved.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - curved.value) * 16),
+            child: child,
+          ),
+        );
+      },
+    );
   }
 
   // Looks up the profiles.id linked to this Firebase user, creating the
@@ -110,7 +144,10 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _entranceController.forward(from: 0);
+      }
     }
   }
 
@@ -254,144 +291,160 @@ class _StudentInfoPageState extends State<StudentInfoPage> {
       ),
       body: _isLoading ? const Center(child: CircularProgressIndicator()) : SingleChildScrollView(
         child: Column(children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
-            child: Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Colors.red.shade800, Color.lerp(Colors.red.shade800, Colors.black, 0.24)!],
+          _fadeIn(
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Colors.red.shade800, Color.lerp(Colors.red.shade800, Colors.black, 0.24)!],
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: Padding(
+                      padding: const EdgeInsets.only(top: 20, bottom: 30),
+                      child: Column(children: [
+                        Text(
+                          "STUDENT PROFILE",
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.55),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Watermark rings, now centered directly behind
+                            // the profile picture instead of the corner.
+                            IgnorePointer(
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [_ring(170), _ring(130), _ring(90)],
+                              ),
+                            ),
+                            Stack(children: [
+                          Container(
+                            width: 96,
+                            height: 96,
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Colors.white.withOpacity(0.9), Colors.white.withOpacity(0.25)],
+                              ),
+                            ),
+                            child: CircleAvatar(
+                              radius: 45, // fills the 96px ring (minus 3px padding each side)
+                              backgroundColor: Colors.white,
+                              backgroundImage: _selectedImage != null
+                                  ? FileImage(_selectedImage!)
+                                  : (_profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null) as ImageProvider?,
+                              child: _selectedImage == null && _profileImageUrl == null
+                                  ? Icon(BootstrapIcons.person_fill, size: 46, color: Colors.red.shade800)
+                                  : null,
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              onTap: _pickImage,
+                              child: Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.red.shade800, width: 2),
+                                  boxShadow: [
+                                    BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6, offset: const Offset(0, 2)),
+                                  ],
+                                ),
+                                child: Icon(BootstrapIcons.camera_fill, size: 15, color: Colors.red.shade800),
+                              ),
+                            ),
+                          ),
+                            ]),
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+                        Text(
+                          _fName.text.isNotEmpty ? "${_fName.text} ${_lName.text}".trim() : "Your Profile",
+                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, height: 1.15),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          "Tap the camera icon to update your photo",
+                          style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w500),
+                        ),
+                      ]),
+                    ),
+                    ),
+                  ],
                 ),
               ),
-              child: Stack(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: Padding(
-                    padding: const EdgeInsets.only(top: 20, bottom: 30),
-                    child: Column(children: [
-                      Text(
-                        "STUDENT PROFILE",
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.55),
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Watermark rings, now centered directly behind
-                          // the profile picture instead of the corner.
-                          IgnorePointer(
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [_ring(170), _ring(130), _ring(90)],
-                            ),
-                          ),
-                          Stack(children: [
-                        Container(
-                          width: 96,
-                          height: 96,
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Colors.white.withOpacity(0.9), Colors.white.withOpacity(0.25)],
-                            ),
-                          ),
-                          child: CircleAvatar(
-                            radius: 45, // fills the 96px ring (minus 3px padding each side)
-                            backgroundColor: Colors.white,
-                            backgroundImage: _selectedImage != null
-                                ? FileImage(_selectedImage!)
-                                : (_profileImageUrl != null ? NetworkImage(_profileImageUrl!) : null) as ImageProvider?,
-                            child: _selectedImage == null && _profileImageUrl == null
-                                ? Icon(BootstrapIcons.person_fill, size: 46, color: Colors.red.shade800)
-                                : null,
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: GestureDetector(
-                            onTap: _pickImage,
-                            child: Container(
-                              padding: const EdgeInsets.all(7),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.red.shade800, width: 2),
-                                boxShadow: [
-                                  BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 6, offset: const Offset(0, 2)),
-                                ],
-                              ),
-                              child: Icon(BootstrapIcons.camera_fill, size: 15, color: Colors.red.shade800),
-                            ),
-                          ),
-                        ),
-                          ]),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      Text(
-                        _fName.text.isNotEmpty ? "${_fName.text} ${_lName.text}".trim() : "Your Profile",
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, height: 1.15),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        "Tap the camera icon to update your photo",
-                        style: TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w500),
-                      ),
-                    ]),
-                  ),
-                  ),
-                ],
-              ),
             ),
+            start: 0.0,
+            end: 0.4,
           ),
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: Column(children: [
-              _buildFormCard("Personal Information", [
-                _buildTextField("First Name", _fName, BootstrapIcons.person),
-                _buildTextField("Last Name", _lName, BootstrapIcons.person),
-                _buildTextField("Middle Name", _mName, BootstrapIcons.person),
-                Row(children: [
-                  Expanded(child: _buildTextField("Age", _age, BootstrapIcons.calendar_event, isNumber: true)),
-                  const SizedBox(width: 12),
-                  Expanded(child: InkWell(onTap: () => _selectDate(context), child: IgnorePointer(child: _buildTextField("Birthday", _bday, BootstrapIcons.cake)))),
+              _fadeIn(
+                _buildFormCard("Personal Information", [
+                  _buildTextField("First Name", _fName, BootstrapIcons.person),
+                  _buildTextField("Last Name", _lName, BootstrapIcons.person),
+                  _buildTextField("Middle Name", _mName, BootstrapIcons.person),
+                  Row(children: [
+                    Expanded(child: _buildTextField("Age", _age, BootstrapIcons.calendar_event, isNumber: true)),
+                    const SizedBox(width: 12),
+                    Expanded(child: InkWell(onTap: () => _selectDate(context), child: IgnorePointer(child: _buildTextField("Birthday", _bday, BootstrapIcons.cake)))),
+                  ]),
+                  _buildDropdown("Barangay", BootstrapIcons.geo_alt),
                 ]),
-                _buildDropdown("Barangay", BootstrapIcons.geo_alt),
-              ]),
+                start: 0.18,
+                end: 0.55,
+              ),
               const SizedBox(height: 20),
-              _buildFormCard("Academic Details", [
-                _buildTextField("School/University", _school, BootstrapIcons.mortarboard),
-                _buildTextField("Year Level", _year, BootstrapIcons.bar_chart),
-                _buildTextField("Contact Number", _contact, BootstrapIcons.phone, isNumber: true),
-                _buildTextField("Email Address", _email, BootstrapIcons.envelope),
-              ]),
+              _fadeIn(
+                _buildFormCard("Academic Details", [
+                  _buildTextField("School/University", _school, BootstrapIcons.mortarboard),
+                  _buildTextField("Year Level", _year, BootstrapIcons.bar_chart),
+                  _buildTextField("Contact Number", _contact, BootstrapIcons.phone, isNumber: true),
+                  _buildTextField("Email Address", _email, BootstrapIcons.envelope),
+                ]),
+                start: 0.34,
+                end: 0.7,
+              ),
               const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _saveProfile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade800,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              _fadeIn(
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isSaving ? null : _saveProfile,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade800,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                        : const Text("SAVE CHANGES", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                   ),
-                  child: _isSaving
-                      ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
-                      : const Text("SAVE CHANGES", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                 ),
+                start: 0.48,
+                end: 0.85,
               ),
             ]),
           ),
