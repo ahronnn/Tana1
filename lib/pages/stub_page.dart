@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:bootstrap_icons/bootstrap_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -31,10 +32,6 @@ class _StubPageState extends State<StubPage> with TickerProviderStateMixin {
   String? _claimStatus;
   DateTime? _claimedAt;
 
-  // One-shot controller that staggers the stub card and the print button
-  // into view — same cascading fade-in language used across the rest of
-  // the app. Only started once loading finishes, since the content it
-  // animates doesn't exist in the tree until then.
   late final AnimationController _entranceController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
@@ -72,8 +69,6 @@ class _StubPageState extends State<StubPage> with TickerProviderStateMixin {
     );
   }
 
-  // Flips off the loading flag (optionally with an error) and kicks off
-  // the entrance animation now that real content is about to be built.
   void _finishLoading({String? error}) {
     if (!mounted) return;
     setState(() {
@@ -96,7 +91,6 @@ class _StubPageState extends State<StubPage> with TickerProviderStateMixin {
         return;
       }
 
-      // 1. Get student_details row for this user
       final student = await supabase
           .from('student_details')
           .select('id, first_name, last_name, middle_name, year_level, barangay_id')
@@ -121,7 +115,6 @@ class _StubPageState extends State<StubPage> with TickerProviderStateMixin {
         _barangayName = barangayName;
       });
 
-      // 2. Look up claim location for the barangay
       if (barangayName.isNotEmpty) {
         final barangay = await supabase
             .from('barangays')
@@ -136,7 +129,6 @@ class _StubPageState extends State<StubPage> with TickerProviderStateMixin {
         }
       }
 
-      // 3. Get the most recent application for this student
       final application = await supabase
           .from('applications')
           .select('ticket_number, status, claim_status, claimed_at')
@@ -174,6 +166,10 @@ class _StubPageState extends State<StubPage> with TickerProviderStateMixin {
   Future<void> _printStub() async {
     final pdf = pw.Document();
 
+    // Load the official city seal for the letterhead.
+    final sealBytes = await rootBundle.load('assets/images/tanauan_seal.png');
+    final sealImage = pw.MemoryImage(sealBytes.buffer.asUint8List());
+
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a5,
@@ -183,11 +179,38 @@ class _StubPageState extends State<StubPage> with TickerProviderStateMixin {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text(
-                  "TANAUAN EDUCATIONAL ASSISTANCE",
-                  style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+                // Letterhead: seal + city/program name
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Container(
+                      width: 54,
+                      height: 54,
+                      child: pw.Image(sealImage),
+                    ),
+                    pw.SizedBox(width: 14),
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            "CITY GOVERNMENT OF TANAUAN",
+                            style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+                          ),
+                          pw.Text(
+                            "Tanauan Educational Assistance Program",
+                            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                          ),
+                          pw.SizedBox(height: 2),
+                          pw.Text(
+                            "Official Assistance Stub",
+                            style: pw.TextStyle(fontSize: 10.5, fontWeight: pw.FontWeight.bold, color: PdfColors.red900),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                pw.Text("Official Assistance Stub", style: const pw.TextStyle(fontSize: 12)),
                 pw.SizedBox(height: 16),
                 pw.Divider(),
                 pw.SizedBox(height: 12),
