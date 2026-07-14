@@ -72,6 +72,24 @@ class _TrackStatusPageState extends State<TrackStatusPage> {
   }
 
   // ---------------------------------------------------------------------
+  // Raw DB status ('Pending', 'Under Review', 'Approved', 'Rejected') →
+  // what's actually shown to the applicant. A freshly-submitted
+  // application is stored as 'Pending' (nothing has looked at it yet),
+  // but from the applicant's point of view that's indistinguishable from
+  // "somebody is reviewing it" — so both display as "Under Review" until
+  // it's actually Approved or Rejected. Only the display label changes;
+  // the raw status keeps flowing everywhere else (_progress, filtering,
+  // admin side) exactly as stored.
+  // ---------------------------------------------------------------------
+  String _statusLabel(String? status) {
+    final s = (status ?? '').toLowerCase();
+    if (s.contains('pending') || s.contains('review')) return "Under Review";
+    if (s.contains('approve')) return "Approved";
+    if (s.contains('reject') || s.contains('denied')) return "Rejected";
+    return status ?? 'Under Review';
+  }
+
+  // ---------------------------------------------------------------------
   // Status → color/icon, same red/amber/green language used across the
   // app (home page status badge, submission hub).
   // ---------------------------------------------------------------------
@@ -299,7 +317,7 @@ class _TrackStatusPageState extends State<TrackStatusPage> {
                           Icon(style.icon, color: Colors.white, size: 12),
                           const SizedBox(width: 5),
                           Text(
-                            app['status']?.toString() ?? 'Pending',
+                            _statusLabel(app['status']?.toString()),
                             style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w700),
                           ),
                         ],
@@ -554,7 +572,7 @@ class _TrackStatusPageState extends State<TrackStatusPage> {
                     Icon(style.icon, size: 11, color: style.color),
                     const SizedBox(width: 5),
                     Text(
-                      app['status']?.toString() ?? 'Pending',
+                      _statusLabel(app['status']?.toString()),
                       style: TextStyle(color: style.color, fontWeight: FontWeight.bold, fontSize: 11),
                     ),
                   ],

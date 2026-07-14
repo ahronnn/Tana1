@@ -119,13 +119,16 @@ class _SubmissionFormPageState extends State<SubmissionFormPage> {
       if (studentId == null) return;
       _studentId = studentId;
 
-      // Resume the most recent application for this student, if any, so
-      // anything already uploaded (and its approve/reject state) reloads
-      // exactly as it was left.
+      // Resume the most recent application of THIS flow's type for this
+      // student, if any, so anything already uploaded (and its
+      // approve/reject state) reloads exactly as it was left. Filtering by
+      // application_type is what keeps New Application and Repeat Availer
+      // from ever picking up each other's application/documents.
       final application = await _supabase
           .from('applications')
           .select('id')
           .eq('student_id', studentId)
+          .eq('application_type', widget.isNewApplicant ? 'new' : 'returning')
           .order('applied_at', ascending: false)
           .limit(1)
           .maybeSingle();
@@ -170,7 +173,8 @@ class _SubmissionFormPageState extends State<SubmissionFormPage> {
     return profile?['id'] as String?;
   }
 
-  /// Returns a live, verified application id.
+  /// Returns a live, verified application id for THIS flow's type
+  /// ('new' or 'returning').
   ///
   /// Pass [forceNew] to skip the cached `_applicationId` and always insert a
   /// fresh row — used when we've just found out the cached id no longer
@@ -178,9 +182,40 @@ class _SubmissionFormPageState extends State<SubmissionFormPage> {
   /// object stayed alive across a hot reload).
   Future<String> _getOrCreateApplicationId(String studentId, {bool forceNew = false}) async {
     if (_applicationId != null && !forceNew) return _applicationId!;
+
+    final type = widget.isNewApplicant ? 'new' : 'returning';
+
+    // Double-check there isn't already a live application of this type
+    // before creating a new one (covers the case where _applicationId was
+    // never loaded, e.g. _loadExistingState hadn't finished yet).
+    if (!forceNew) {
+      final existing = await _supabase
+          .from('applications')
+          .select('id')
+          .eq('student_id', studentId)
+          .eq('application_type', type)
+          .order('applied_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (existing != null) {
+        _applicationId = existing['id'] as String;
+        return _applicationId!;
+      }
+    }
+
+    // NOTE: 'status' is set explicitly here rather than relying on the
+    // applications.status column default. The default happens to be
+    // 'Pending' today, but pinning it in code means a future change to
+    // the DB default can never silently put new applications into the
+    // wrong state (e.g. showing as "Approved" before anything was
+    // reviewed).
     final inserted = await _supabase
         .from('applications')
-        .insert({'student_id': studentId})
+        .insert({
+          'student_id': studentId,
+          'application_type': type,
+          'status': 'Pending',
+        })
         .select('id')
         .single();
     _applicationId = inserted['id'] as String;

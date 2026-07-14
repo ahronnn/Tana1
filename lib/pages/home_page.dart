@@ -156,6 +156,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // uploaded photo from student_details.image_url (same row the
   // Student Profile page writes to), so the hero card greets the
   // actual account — name AND face — not a hardcoded placeholder.
+  //
+  // Also doubles as the pull-to-refresh handler for the whole page —
+  // it re-fetches name, photo, and application status from Supabase,
+  // so pulling down always reflects whatever's actually in the database
+  // right now, without logging the user out or touching their session.
   Future<void> _loadUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -289,133 +294,142 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             const SizedBox(width: 6),
           ],
         ),
-        body: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Hero card — first to appear.
-              _fadeIn(_buildHeroCard(currentUser), start: 0.0, end: 0.45),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Announcements — fades in next, slightly overlapping
-                    // the tail end of the hero card's reveal.
-                    _fadeIn(
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Announcements',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildNewsCarousel(),
-                          const SizedBox(height: 10),
-                          _buildNewsDots(),
-                        ],
+        // Pull-to-refresh: dragging down re-runs _loadUserProfile(), which
+        // re-fetches name, photo, and application status from Supabase.
+        // Doesn't touch FirebaseAuth session state, so the user stays
+        // logged in — it only refreshes data, never logs anyone out.
+        body: RefreshIndicator(
+          color: Colors.red.shade800,
+          onRefresh: _loadUserProfile,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Hero card — first to appear.
+                _fadeIn(_buildHeroCard(currentUser), start: 0.0, end: 0.45),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Announcements — fades in next, slightly overlapping
+                      // the tail end of the hero card's reveal.
+                      _fadeIn(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Announcements',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildNewsCarousel(),
+                            const SizedBox(height: 10),
+                            _buildNewsDots(),
+                          ],
+                        ),
+                        start: 0.18,
+                        end: 0.58,
                       ),
-                      start: 0.18,
-                      end: 0.58,
-                    ),
-                    const SizedBox(height: 26),
-                    // Quick Actions header — fades in after announcements.
-                    _fadeIn(
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Quick Actions',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Jump straight to what you need.',
-                            style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
-                          ),
-                        ],
+                      const SizedBox(height: 26),
+                      // Quick Actions header — fades in after announcements.
+                      _fadeIn(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Quick Actions',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Jump straight to what you need.',
+                              style: TextStyle(fontSize: 12.5, color: Colors.grey.shade600),
+                            ),
+                          ],
+                        ),
+                        start: 0.38,
+                        end: 0.68,
                       ),
-                      start: 0.38,
-                      end: 0.68,
-                    ),
-                    const SizedBox(height: 14),
-                    // Each quick-action tile cascades in one after another.
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 14,
-                      mainAxisSpacing: 14,
-                      childAspectRatio: 0.98,
-                      children: [
-                        _fadeIn(
-                          _buildActionTile(
-                            icon: BootstrapIcons.file_earmark_text_fill,
-                            title: "Application Hub",
-                            subtitle: "Apply or manage",
-                            accent: Colors.red.shade800,
-                            onTap: () async {
-                              await Navigator.push(
+                      const SizedBox(height: 14),
+                      // Each quick-action tile cascades in one after another.
+                      GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: 0.98,
+                        children: [
+                          _fadeIn(
+                            _buildActionTile(
+                              icon: BootstrapIcons.file_earmark_text_fill,
+                              title: "Application Hub",
+                              subtitle: "Apply or manage",
+                              accent: Colors.red.shade800,
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const SubmissionHubPage()),
+                                );
+                                // Status may have changed (new submission, etc.) —
+                                // refresh so the hero card reflects it right away.
+                                _loadUserProfile();
+                              },
+                            ),
+                            start: 0.48,
+                            end: 0.85,
+                          ),
+                          _fadeIn(
+                            _buildActionTile(
+                              icon: BootstrapIcons.receipt,
+                              title: "Stub",
+                              subtitle: "View your payout",
+                              accent: Colors.teal.shade600,
+                              onTap: () => Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (context) => const SubmissionHubPage()),
-                              );
-                              // Status may have changed (new submission, etc.) —
-                              // refresh so the hero card reflects it right away.
-                              _loadUserProfile();
-                            },
-                          ),
-                          start: 0.48,
-                          end: 0.85,
-                        ),
-                        _fadeIn(
-                          _buildActionTile(
-                            icon: BootstrapIcons.receipt,
-                            title: "Stub",
-                            subtitle: "View your payout",
-                            accent: Colors.teal.shade600,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const StubPage()),
+                                MaterialPageRoute(builder: (context) => const StubPage()),
+                              ),
                             ),
+                            start: 0.56,
+                            end: 0.90,
                           ),
-                          start: 0.56,
-                          end: 0.90,
-                        ),
-                        _fadeIn(
-                          _buildActionTile(
-                            icon: BootstrapIcons.graph_up_arrow,
-                            title: "Track Status",
-                            subtitle: "Check progress",
-                            accent: Colors.blue.shade700,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const TrackStatusPage()),
+                          _fadeIn(
+                            _buildActionTile(
+                              icon: BootstrapIcons.graph_up_arrow,
+                              title: "Track Status",
+                              subtitle: "Check progress",
+                              accent: Colors.blue.shade700,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const TrackStatusPage()),
+                              ),
                             ),
+                            start: 0.64,
+                            end: 0.95,
                           ),
-                          start: 0.64,
-                          end: 0.95,
-                        ),
-                        _fadeIn(
-                          _buildActionTile(
-                            icon: BootstrapIcons.headset,
-                            title: "Support",
-                            subtitle: "Get help",
-                            accent: Colors.amber.shade800,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const SupportPage()),
+                          _fadeIn(
+                            _buildActionTile(
+                              icon: BootstrapIcons.headset,
+                              title: "Support",
+                              subtitle: "Get help",
+                              accent: Colors.amber.shade800,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const SupportPage()),
+                              ),
                             ),
+                            start: 0.72,
+                            end: 1.0,
                           ),
-                          start: 0.72,
-                          end: 1.0,
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
