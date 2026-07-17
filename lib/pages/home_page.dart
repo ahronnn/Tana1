@@ -9,6 +9,7 @@ import 'stub_page.dart';
 import 'track_status_page.dart';
 import 'support_page.dart';
 import 'login_page.dart';
+import 'scholarship_page.dart';
 
 class UserModel {
   final String name;
@@ -19,12 +20,14 @@ class UserModel {
 }
 
 class NotificationItem {
+  final String id;
   final String title;
   final String message;
   final String time;
   bool read;
 
   NotificationItem({
+    required this.id,
     required this.title,
     required this.message,
     required this.time,
@@ -47,6 +50,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   );
   bool _loadingUser = true;
   String? _profileImageUrl;
+  String? _profileId;
   late final AnimationController _pulseController =
       AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat(reverse: true);
   // Expanding "live alert" ring — separate from the opacity pulse above,
@@ -104,9 +108,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     ),
   ];
 
-  // Empty for now — populate this (or wire it up to a real notifications
-  // source) whenever we're ready to actually notify students.
-  final List<NotificationItem> notifications = [];
+  // Real notifications, fetched from the `notifications` table (see
+  // _loadNotifications). Populated after the profile id is known, and
+  // refreshed on pull-to-refresh alongside the profile.
+  List<NotificationItem> notifications = [];
 
   int _currentNewsIndex = 0;
 
@@ -115,7 +120,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _loadUserProfile();
+    // Notifications depend on _profileId, which _loadUserProfile sets —
+    // so load notifications only after the profile fetch resolves.
+    _loadUserProfile().then((_) => _loadNotifications());
     _entranceController.forward();
   }
 
@@ -219,6 +226,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             applicationStatus: applicationStatus,
           );
           _profileImageUrl = imageUrl;
+          _profileId = profileId;
         });
       }
     } catch (e) {
@@ -226,6 +234,50 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     } finally {
       if (mounted) setState(() => _loadingUser = false);
     }
+  }
+
+  // Fetches this student's notifications (newest first) from the
+  // `notifications` table. Rows are created automatically by Supabase
+  // triggers whenever an application/document status changes or a new
+  // scholarship goes active — this just reads what's already there.
+  Future<void> _loadNotifications() async {
+    if (_profileId == null) return;
+    try {
+      final rows = await Supabase.instance.client
+          .from('notifications')
+          .select('id, title, message, type, is_read, created_at')
+          .eq('student_id', _profileId!)
+          .order('created_at', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          notifications = List<Map<String, dynamic>>.from(rows).map((n) {
+            return NotificationItem(
+              id: n['id'].toString(),
+              title: (n['title'] as String?) ?? '',
+              message: (n['message'] as String?) ?? '',
+              time: _timeAgo(n['created_at'] as String?),
+              read: (n['is_read'] as bool?) ?? false,
+            );
+          }).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading notifications: $e");
+    }
+  }
+
+  // Turns a UTC timestamp into a short relative label ("5m ago", "2h ago"),
+  // matching the compact style already used for other timestamps in the app.
+  String _timeAgo(String? iso) {
+    if (iso == null) return '';
+    final date = DateTime.tryParse(iso);
+    if (date == null) return '';
+    final diff = DateTime.now().toUtc().difference(date);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 
   // ---------------------------------------------------------------------
@@ -294,13 +346,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             const SizedBox(width: 6),
           ],
         ),
-        // Pull-to-refresh: dragging down re-runs _loadUserProfile(), which
-        // re-fetches name, photo, and application status from Supabase.
-        // Doesn't touch FirebaseAuth session state, so the user stays
-        // logged in — it only refreshes data, never logs anyone out.
+        // Pull-to-refresh: dragging down re-runs _loadUserProfile() and
+        // _loadNotifications(), so pulling down always reflects whatever's
+        // actually in the database right now. Doesn't touch FirebaseAuth
+        // session state — it only refreshes data, never logs anyone out.
         body: RefreshIndicator(
           color: Colors.red.shade800,
-          onRefresh: _loadUserProfile,
+          onRefresh: () async {
+            await _loadUserProfile();
+            await _loadNotifications();
+          },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Column(
@@ -423,6 +478,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             start: 0.72,
                             end: 1.0,
                           ),
+                          _fadeIn(
+                            _buildActionTile(
+                              icon: BootstrapIcons.mortarboard_fill,
+                              title: "Scholarships",
+                              subtitle: "Explore opportunities",
+                              accent: Colors.purple.shade700,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const ScholarshipPage()),
+                              ),
+                            ),
+                            start: 0.80,
+                            end: 1.0,
+                          ),
                         ],
                       ),
                     ],
@@ -505,7 +574,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ),
                           if (_unreadCount > 0)
                             TextButton(
-                              onPressed: () {
+                              onPressed: () async {
+                                // Persist read-status to Supabase first (so a
+                                // failed request doesn't leave local state
+                                // out of sync), then update the UI.
+                                final unreadIds =
+                                    notifications.where((n) => !n.read).map((n) => n.id).toList();
+                                try {
+                                  if (unreadIds.isNotEmpty) {
+                                    await Supabase.instance.client
+                                        .from('notifications')
+                                        .update({'is_read': true})
+                                        .inFilter('id', unreadIds);
+                                  }
+                                } catch (e) {
+                                  debugPrint("Error marking notifications read: $e");
+                                }
                                 setModalState(() {
                                   setState(() {
                                     for (final n in notifications) {
@@ -556,7 +640,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               itemBuilder: (context, index) {
                                 final n = notifications[index];
                                 return ListTile(
-                                  onTap: () {
+                                  onTap: () async {
+                                    if (!n.read) {
+                                      try {
+                                        await Supabase.instance.client
+                                            .from('notifications')
+                                            .update({'is_read': true})
+                                            .eq('id', n.id);
+                                      } catch (e) {
+                                        debugPrint("Error marking notification read: $e");
+                                      }
+                                    }
                                     setModalState(() {
                                       setState(() => n.read = true);
                                     });

@@ -120,7 +120,12 @@ class _TrackStatusPageState extends State<TrackStatusPage> {
     if (status.contains('reject') || status.contains('denied')) {
       return (step: 1, rejected: true);
     }
-    if (claimStatus.contains('claim') || claimedAt != null) {
+    // Exact match on 'claimed' here (not a loose .contains('claim')) —
+    // the default/unset value for this field is the string 'Unclaimed',
+    // and "unclaimed".contains('claim') is true, which was previously
+    // sending every fresh application straight to step 3.
+    final isClaimed = claimStatus == 'claimed' || claimedAt != null;
+    if (isClaimed) {
       return (step: 3, rejected: false);
     }
     if (status.contains('approve')) {
