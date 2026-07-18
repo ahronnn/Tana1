@@ -475,10 +475,85 @@ class _StudentInfoPageState extends State<StudentInfoPage> with TickerProviderSt
     return Padding(padding: const EdgeInsets.only(bottom: 15), child: TextFormField(controller: controller, keyboardType: isNumber ? TextInputType.number : TextInputType.text, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18, color: Colors.red.shade800), filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none), contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16))));
   }
 
-  final List<String> _barangays = ["Altura Bata", "Altura Matanda", "Altura South", "Ambulong", "Bagbag", "Bagumbayan", "Balele", "Bañadero", "Banjo East (Bungkalot)", "Banjo West (Banjo Laurel)", "Bilog-bilog", "Boot", "Cale", "Darasa", "Gonzales", "Hidalgo", "Janopol Oriental", "Janopol Occidental", "Laurel", "Luyos", "Mabini", "Malaking Pulo", "Maria Paz", "Montaña (Ik-ik)", "Maugat", "Natatas", "Pagaspas (Balokbalok)", "Pantay Bata", "Pantay Matanda", "Poblacion Barangay 1", "Poblacion Barangay 2", "Poblacion Barangay 3", "Poblacion Barangay 4", "Poblacion Barangay 5", "Poblacion Barangay 6", "Poblacion Barangay 7", "Sala", "Sambat", "San Jose", "Santol (Doña Jacoba Garcia)", "Santor", "Sulpoc", "Suplang", "Talaga", "Tinurik", "Trapiche", "Ulango", "Wawa"];
+  // Each entry has a friendly "display" label (with local nicknames, shown
+  // to students in the dropdown) and a "value" that is what actually gets
+  // stored in student_details.barangay_id — value must match barangays.name
+  // in Supabase EXACTLY (case + spelling), or the claim-location stub lookup
+  // silently fails to "Not yet assigned."
+  final List<Map<String, String>> _barangays = [
+    {"display": "Altura Bata", "value": "Altura Bata"},
+    {"display": "Altura Matanda", "value": "Altura Matanda"},
+    {"display": "Altura South", "value": "Altura South"},
+    {"display": "Ambulong", "value": "Ambulong"},
+    {"display": "Bagbag", "value": "Bagbag"},
+    {"display": "Bagumbayan", "value": "Bagumbayan"},
+    {"display": "Balele", "value": "Balele"},
+    {"display": "Bañadero", "value": "Bañadero"},
+    {"display": "Banjo East (Bungkalot)", "value": "Banjo East"},
+    {"display": "Banjo West (Banjo Laurel)", "value": "Banjo West"},
+    {"display": "Bilog-bilog", "value": "Bilog-bilog"},
+    {"display": "Boot", "value": "Boot"},
+    {"display": "Cale", "value": "Cale"},
+    {"display": "Darasa", "value": "Darasa"},
+    {"display": "Gonzales", "value": "Gonzales"},
+    {"display": "Hidalgo", "value": "Hidalgo"},
+    {"display": "Janopol Oriental", "value": "Janopol Oriental"},
+    {"display": "Janopol Occidental", "value": "Janopol"},
+    {"display": "Laurel", "value": "Laurel"},
+    {"display": "Luyos", "value": "Luyos"},
+    {"display": "Mabini", "value": "Mabini"},
+    {"display": "Malaking Pulo", "value": "Malaking Pulo"},
+    {"display": "Maria Paz", "value": "Maria Paz"},
+    {"display": "Montaña (Ik-ik)", "value": "Montaña"},
+    {"display": "Maugat", "value": "Maugat"},
+    {"display": "Natatas", "value": "Natatas"},
+    {"display": "Pagaspas (Balokbalok)", "value": "Pagaspas"},
+    {"display": "Pantay Bata", "value": "Pantay Bata"},
+    {"display": "Pantay Matanda", "value": "Pantay Matanda"},
+    {"display": "Poblacion Barangay 1", "value": "Poblacion 1"},
+    {"display": "Poblacion Barangay 2", "value": "Poblacion 2"},
+    {"display": "Poblacion Barangay 3", "value": "Poblacion 3"},
+    {"display": "Poblacion Barangay 4", "value": "Poblacion 4"},
+    {"display": "Poblacion Barangay 5", "value": "Poblacion 5"},
+    {"display": "Poblacion Barangay 6", "value": "Poblacion 6"},
+    {"display": "Poblacion Barangay 7", "value": "Poblacion 7"},
+    {"display": "Sala", "value": "Sala"},
+    {"display": "Sambat", "value": "Sambat"},
+    {"display": "San Jose", "value": "San Jose"},
+    {"display": "Santol (Doña Jacoba Garcia)", "value": "Santol"},
+    {"display": "Santor", "value": "Santor"},
+    {"display": "Sulpoc", "value": "Sulpoc"},
+    {"display": "Suplang", "value": "Suplang"},
+    {"display": "Talaga", "value": "Talaga"},
+    {"display": "Tinurik", "value": "Tinurik"},
+    {"display": "Trapiche", "value": "Trapiche"},
+    {"display": "Ulango", "value": "Ulango"},
+    {"display": "Wawa", "value": "WaWa"},
+  ];
 
   Widget _buildDropdown(String label, IconData icon) {
-    return Padding(padding: const EdgeInsets.only(bottom: 15), child: DropdownButtonFormField<String>(value: _barangays.contains(_brgy.text) ? _brgy.text : null, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18, color: Colors.red.shade800), filled: true, fillColor: Colors.grey.shade50, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none)), items: _barangays.map((val) => DropdownMenuItem(value: val, child: Text(val))).toList(), onChanged: (val) => setState(() => _brgy.text = val!)));
+    // _brgy.text stores the DB value, not the display label — match against
+    // the "value" field so an existing profile's saved barangay still shows
+    // as selected in the dropdown.
+    final matchingValue = _barangays.any((b) => b["value"] == _brgy.text) ? _brgy.text : null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: DropdownButtonFormField<String>(
+        value: matchingValue,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, size: 18, color: Colors.red.shade800),
+          filled: true,
+          fillColor: Colors.grey.shade50,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        ),
+        items: _barangays
+            .map((b) => DropdownMenuItem(value: b["value"], child: Text(b["display"]!)))
+            .toList(),
+        onChanged: (val) => setState(() => _brgy.text = val!),
+      ),
+    );
   }
 
   Future<void> _selectDate(BuildContext context) async {
